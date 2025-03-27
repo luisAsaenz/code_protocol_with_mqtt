@@ -34,49 +34,61 @@ def send_message(message):
         return
     if message[3:4] not in team:
         if message[3:4] == broadcast:
-            uart.write(message)
+            pass
             
         else: print('ESP: receiver not in team')
         return
-    uart.write(message)
+    if message[2:3] == id:
+        uart.write(message)
+        print('ESP: sending MY message')
+    else:
+        uart.write(message)
+        print('ESP: sending team message')
+
+
+
     # send_queue.append(message)
 
 def handle_message(message):
     my_string = message.decode('utf-8')
     if message[3:4] != id:
         if message[3:4] == broadcast:
-            print('ESP: handling broadcast ',message)
+            print('ESP: handling broadcast ', message)
         else:
-            print('ESP: handling team message ',message)
+            print('ESP: handling team message ')
+            print(message)
             send_message(message)
     else:
         message_type = message[4]
         print('ESP: handling my message ',message)
-        match message_type:
+        if message_type == 2:
+            # Handle message type 2
+            sensor_id = my_string[5]
+            sensor_value = my_string[6]
+            print('ESP: message contains sensor id and value')
+            # Send to Wi-Fi publisher
+            pass
 
-            case 2:
-                # handle message type 2
-                sensor_id = my_string[5]
-                sensor_value = my_string[6]
-                print('ESP: message contains sensor id and value')
-                #send to wifi publisher
-                pass
-    
-            case 5:
-                # handle message type 2
-                subsystem_id = my_string[5]
-                print('ESP: message contains subsystem that is experiencing error')
-                pass
-            case 6:
-                # handle message type 2
-                motor_status = message[5]
-                print('ESP: message contains the status of motor')
-                pass
-            case 7:
-                # handle message type 2
-                sensor_status = message[5]
-                print('ESP: message contains the status of sensor')
-                pass
+        elif message_type == 5:
+            # Handle message type 5
+            subsystem_id = my_string[5]
+            print('ESP: message contains subsystem that is experiencing error')
+            pass
+
+        elif message_type == 6:
+            # Handle message type 6
+            motor_status = message[5]
+            print('ESP: message contains the status of motor')
+            pass
+
+        elif message_type == 7:
+            # Handle message type 7
+            sensor_status = message[5]
+            print('ESP: message contains the status of sensor')
+            pass
+
+        else:
+            print('ESP: unknown message type')
 
     
         
@@ -165,14 +177,28 @@ async def process_rx():
 async def heartbeat():
 
     while True:
-        print('ESP: sending')
-        uart.write(b'AZabHello!YB')
+        print('ESP: sending heartbeat')
+        uart.write(b'AZbaHello!YB')
         await asyncio.sleep(10)    
 
 
 
 async def main():
+    counter = 0
     while True:
+        token = counter%10
+        if token == 9: # MESSAGE TYPE1
+            message = b'AZcd\x0130YB'
+            send_message(message)
+        if token == 10: # MESSAGE TYPE3
+            message = b'AZbd\x03wifi is not communicatingYB'
+        if token == 11: # MESSAGE TYPE4
+            message = b'AZcd\x040YB'
+        if token == 12: # MESSAGE TYPe5
+            message = b'AZcd\x05bYB'
+        if token == 13: # MESSAGE TYPe8
+            message = b'AZcd\x08this is the broadcastYB'
+        counter += 1
         await asyncio.sleep(1)
 
 asyncio.create_task(process_rx())
