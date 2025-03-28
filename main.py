@@ -20,9 +20,9 @@ led = Pin(2,Pin.OUT)
 
 def send_message(message):
     print('ESP: send message')
-    if len(message)>MAX_MESSAGE_LEN:
-        print('ESP: message too long')
-        return
+    # if len(message)>MAX_MESSAGE_LEN:
+    #     print('ESP: message too long')
+    #     return
     if message[0:2] != b'AZ':
         print('ESP: message does not start with AZ')
         return
@@ -34,16 +34,23 @@ def send_message(message):
         return
     if message[3:4] not in team:
         if message[3:4] == broadcast:
+            print(f'ESP: passing broadcast message ---> {message}')
+            uart.write(message)
+
             pass
             
         else: print('ESP: receiver not in team')
         return
+    # if len(message)>MAX_MESSAGE_LEN:
+    #     print(f'ESP: message is too long: {message}')
+    #     print(f'ESP: not sending message. Deleting message.')
+    #     return
     if message[2:3] == id:
         uart.write(message)
-        print('ESP: sending MY message')
+        print('ESP: sending MY message ', message)
     else:
         uart.write(message)
-        print('ESP: sending team message')
+        print('ESP: sending team message ', message)
 
 
 
@@ -51,44 +58,59 @@ def send_message(message):
 
 def handle_message(message):
     my_string = message.decode('utf-8')
-    if message[3:4] != id:
+    if message[3:4] != id: ## checks if receiver is not my id
         if message[3:4] == broadcast:
             print('ESP: handling broadcast ', message)
+            send_message(message)
         else:
-            print('ESP: handling team message ')
-            print(message)
+            print(f'ESP: handling team message {message}')
             send_message(message)
     else:
+        #send_message(message)
         message_type = message[4]
-        print('ESP: handling my message ',message)
+        print(f'ESP: handling my message {message}')
         if message_type == 2:
             # Handle message type 2
             sensor_id = my_string[5]
-            sensor_value = my_string[6]
-            print('ESP: message contains sensor id and value')
+            sensor_value = message[6]
+            if sensor_value > 100:
+                print('ESP: sensor value is too out of range')
+                return
+            else:
+                print(f'ESP: message contains sensor {sensor_id} value: {sensor_value}')
             # Send to Wi-Fi publisher
             pass
 
         elif message_type == 5:
             # Handle message type 5
             subsystem_id = my_string[5]
-            print('ESP: message contains subsystem that is experiencing error')
+            print(f'ESP: subsystem {subsystem_id} that is experiencing error')
             pass
 
         elif message_type == 6:
             # Handle message type 6
             motor_status = message[5]
-            print('ESP: message contains the status of motor')
-            pass
+            if motor_status == 0:
+                print('ESP: Motor is not down.')
+            elif motor_status == 1:
+                print('ESP: Motor is up.')
+            else: 
+                print('ESP: Motor status is unknown.')
 
         elif message_type == 7:
             # Handle message type 7
             sensor_status = message[5]
-            print('ESP: message contains the status of sensor')
+            if sensor_status == 0:
+                print('ESP: Sensor is not down.')
+            elif sensor_status == 1:
+                print('ESP: Sensor is up.')
+            else: 
+                print('ESP: Sensor status is unknown.')
             pass
 
         else:
             print('ESP: unknown message type')
+        print(f'ESP: Message, {message} ,  handled. Deleting message.. ')
 
     
         
@@ -114,8 +136,7 @@ async def process_rx():
         
             
         if c is not None:
-            if type(c) != bytes:
-                c = bytes(c, 'utf-8')
+            
             stream+=c
             try:
                 if stream[-2:]==b'AZ':
@@ -126,11 +147,16 @@ async def process_rx():
                 pass
             try:
                 if stream[-2:]==b'YB':
-                    message+=stream[-1:]
+                    if receiving_message == False:
+                        message=b''
+                        pass
+                    else:
+                        message+=stream[-1:]
+                        receiving_message = False
+                        print('ESP: message received:',message)
+                        handle_message(message)
                     stream=b''
-                    receiving_message = False
-                    # print('ESP: message received:',message)
-                    handle_message(message)
+
                     led.value(led.value()^1)
             
             except IndexError:
@@ -138,31 +164,37 @@ async def process_rx():
             
             if receiving_message:
                 
-                message+=c #immediately after receiving_message == true, Z is added to message 
+                message+=c #immediately after receiving_message == true, Z is added to message
+                #print(message) 
+                #print(c)
 
 
                 if len(message)==3:
-                    if not (message[2:3] in team):
-                        print('ESP: sender not in team')
+                    if  (message[2:3] not in team):
+                        print('ESP: sender not in team ------>  ')
+                        print(c)
+
                         # get rid of message if sender not on team
-                        stream=b''
+                       # message=b''
                         receiving_message = False
                     else:
                         if message[2:3] == id:
                             print('ESP: receiving message from self. DELETING...')
-                            stream=b''
+                          #  message=b''
                             receiving_message = False
                         else:
                             print('ESP: sender in team')
 
                 if len(message)==4:
-                    if not (message[3:4] in team):
-                        print('ESP: receiver not in team')
+                    if  (message[3:4] not in team):
+                        
                         # get rid of message if sender not on team
-                        stream=b''
-                        receiving_message = False
-                    elif message[3:4] == broadcast:
-                        print('ESP: receiving broadcast')
+                        #message=b''
+                        if message[3:4] == broadcast:
+                            print('ESP: receiving broadcast')
+                        else:
+                            print('ESP: receiver not in team')
+                            receiving_message = False
                     else:
                         print('ESP: receiver in team')
 
@@ -176,9 +208,14 @@ async def process_rx():
 
 async def heartbeat():
 
-    while True:
+    token= 0
+
+    while token == 0:
+        token = 1
         print('ESP: sending heartbeat')
-        uart.write(b'AZbaHello!YB')
+        uart.write(b'AZba\x08Hello!YB')
+        print('ESP: heartbeat sent')
+
         await asyncio.sleep(10)    
 
 
@@ -186,23 +223,42 @@ async def heartbeat():
 async def main():
     counter = 0
     while True:
-        token = counter%10
+        token = counter%100
+        
         if token == 9: # MESSAGE TYPE1
-            message = b'AZcd\x0130YB'
+            message = b'AZcd\x0130dfdsgrejhv dfjhgdlkfjhvldkfj fjklhguieoeh dfhuigb dfjfdgfdgsdfgdfgdffYB'
             send_message(message)
-        if token == 10: # MESSAGE TYPE3
-            message = b'AZbd\x03wifi is not communicatingYB'
-        if token == 11: # MESSAGE TYPE4
-            message = b'AZcd\x040YB'
-        if token == 12: # MESSAGE TYPe5
-            message = b'AZcd\x05bYB'
-        if token == 13: # MESSAGE TYPe8
-            message = b'AZcd\x08this is the broadcastYB'
+    
+        if token == 11: # MESSAGE TYPE3
+            message = b'AZbX\x03wifi is not communicatingYB'       
+            send_message(message)
+
+        if token == 15: # MESSAGE TYPE2
+            message = b'AZcb\x021\x78YB'
+            send_message(message)
+
+        if token == 22: # MESSAGE TYPE6
+            message = b'AZcb\x06\x01YB'
+            send_message(message)
+
+        # if token == 40: # MESSAGE TYPE4
+        #     message = b'AZcb\x040YB'
+        #     send_message(message)
+
+        # if token ==  45: # MESSAGE TYPe5
+        #     message = b'AZbd\x05bYB'
+        #     send_message(message)
+
+        # if token == 50: # MESSAGE TYPe8
+        #     message = b'AZcX\x08this is the broadcastYB'
+        #     send_message(message)
+        
+
         counter += 1
         await asyncio.sleep(1)
 
 asyncio.create_task(process_rx())
-asyncio.create_task(heartbeat())
+#asyncio.create_task(heartbeat())
 
 try:
     asyncio.run(main())
