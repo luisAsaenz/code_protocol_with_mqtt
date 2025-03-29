@@ -242,11 +242,11 @@ async def main():
             send_message(message)
 
         if token == 15: # MESSAGE TYPE2
-            message = b'AZcb\x021\x09YB'
+            message = b'AZcb\x021\x10YB'
             send_message(message)
 
         if token == 22: # MESSAGE TYPE6
-            message = b'AZcX\x03sfsdf fdfsdf fdYB'
+            message = b'AZcX\x08this is broadcastYB'
             send_message(message)
 
         # if token == 40: # MESSAGE TYPE4
