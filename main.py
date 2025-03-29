@@ -19,7 +19,6 @@ led = Pin(2,Pin.OUT)
 
 
 def send_message(message):
-    print('ESP: send message')
     # if len(message)>MAX_MESSAGE_LEN:
     #     print('ESP: message too long')
     #     return
@@ -34,12 +33,13 @@ def send_message(message):
         return
     if message[3:4] not in team:
         if message[3:4] == broadcast:
-            print(f'ESP: passing broadcast message ---> {message}')
+            print(f'ESP: sending broadcast message ---> {message}')
             uart.write(message)
 
             pass
             
-        else: print('ESP: receiver not in team')
+        else:
+            print('ESP: receiver not in team')
         return
     # if len(message)>MAX_MESSAGE_LEN:
     #     print(f'ESP: message is too long: {message}')
@@ -58,59 +58,67 @@ def send_message(message):
 
 def handle_message(message):
     my_string = message.decode('utf-8')
-    if message[3:4] != id: ## checks if receiver is not my id
-        if message[3:4] == broadcast:
-            print('ESP: handling broadcast ', message)
-            send_message(message)
-        else:
-            print(f'ESP: handling team message {message}')
-            send_message(message)
+    if message[3:4] != id and message[3:4] != broadcast: ## checks if receiver is not my id or the broadcast
+       
+        print(f'ESP: handling team message {message}')
+        send_message(message)
     else:
-        #send_message(message)
+        # if broadcast message and message type is 8 then pass message if not handle message normally then pass broadcast
         message_type = message[4]
-        print(f'ESP: handling my message {message}')
-        if message_type == 2:
-            # Handle message type 2
-            sensor_id = my_string[5]
-            sensor_value = message[6]
-            if sensor_value > 100:
-                print('ESP: sensor value is too out of range')
-                return
+        if message[3:4] == broadcast and message_type == 8:
+            print('ESP: passing broadcast ', message)
+            send_message(message)
+        else: 
+            if message[3:4] == broadcast:
+                print('ESP: handling broadcast ', message)
             else:
-                print(f'ESP: message contains sensor {sensor_id} value: {sensor_value}')
-            # Send to Wi-Fi publisher
-            pass
+                print(f'ESP: handling my message {message}')
+            if message_type == 2:
+                # Handle message type 2
+                sensor_id = my_string[5]
+                sensor_value = message[6]
+                if sensor_value > 100:
+                    print('ESP: sensor value is too out of range')
+                    return
+                else:
+                    print(f'ESP: message contains sensor {sensor_id} value: {sensor_value}')
+                # Send to Wi-Fi publisher
+                pass
 
-        elif message_type == 5:
-            # Handle message type 5
-            subsystem_id = my_string[5]
-            print(f'ESP: subsystem {subsystem_id} that is experiencing error')
-            pass
+            elif message_type == 5:
+                # Handle message type 5
+                subsystem_id = my_string[5]
+                print(f'ESP: subsystem {subsystem_id} that is experiencing error')
+                pass
 
-        elif message_type == 6:
-            # Handle message type 6
-            motor_status = message[5]
-            if motor_status == 0:
-                print('ESP: Motor is not down.')
-            elif motor_status == 1:
-                print('ESP: Motor is up.')
-            else: 
-                print('ESP: Motor status is unknown.')
+            elif message_type == 6:
+                # Handle message type 6
+                motor_status = message[5]
+                if motor_status == 0:
+                    print('ESP: Motor is not down.')
+                elif motor_status == 1:
+                    print('ESP: Motor is up.')
+                else: 
+                    print('ESP: Motor status is unknown.')
 
-        elif message_type == 7:
-            # Handle message type 7
-            sensor_status = message[5]
-            if sensor_status == 0:
-                print('ESP: Sensor is not down.')
-            elif sensor_status == 1:
-                print('ESP: Sensor is up.')
-            else: 
-                print('ESP: Sensor status is unknown.')
-            pass
+            elif message_type == 7:
+                # Handle message type 7
+                sensor_status = message[5]
+                if sensor_status == 0:
+                    print('ESP: Sensor is not down.')
+                elif sensor_status == 1:
+                    print('ESP: Sensor is up.')
+                else: 
+                    print('ESP: Sensor status is unknown.')
+                pass
 
-        else:
-            print('ESP: unknown message type')
-        print(f'ESP: Message, {message} ,  handled. Deleting message.. ')
+            else:
+                print('ESP: unknown message type.')
+            if message[3:4] == broadcast:
+                print('ESP: broadcast messaged handled, passing broadcast.')
+                send_message(message)
+            else:
+                print(f'ESP: Message, {message} ,  handled. Deleting message..')
 
     
         
@@ -234,11 +242,11 @@ async def main():
             send_message(message)
 
         if token == 15: # MESSAGE TYPE2
-            message = b'AZcb\x021\x78YB'
+            message = b'AZcb\x021\x09YB'
             send_message(message)
 
         if token == 22: # MESSAGE TYPE6
-            message = b'AZcb\x06\x01YB'
+            message = b'AZcX\x03sfsdf fdfsdf fdYB'
             send_message(message)
 
         # if token == 40: # MESSAGE TYPE4
