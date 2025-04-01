@@ -41,10 +41,7 @@ def send_message(message):
         else:
             print('ESP: receiver not in team')
         return
-    # if len(message)>MAX_MESSAGE_LEN:
-    #     print(f'ESP: message is too long: {message}')
-    #     print(f'ESP: not sending message. Deleting message.')
-    #     return
+    
     if message[2:3] == id:
         uart.write(message)
         print('ESP: sending MY message ', message)
@@ -88,7 +85,10 @@ def handle_message(message):
             elif message_type == 5:
                 # Handle message type 5
                 subsystem_id = my_string[5]
-                print(f'ESP: subsystem {subsystem_id} that is experiencing error')
+                if subsystem_id in team.decode('utf-8'):
+                    print(f'ESP: subsystem {subsystem_id} that is experiencing error')
+                else:
+                    print(f'ESP: Subsystem, {subsystem_id} is not in team.')
                 pass
 
             elif message_type == 6:
